@@ -1392,78 +1392,66 @@
           return (commonWords * 2) + (charMatches / shorter.length);
         }
         
-        // Find matching parks with fuzzy search
+        // Find matching parks with focused name-based search
         const matchingParks = allParks.filter(park => {
           try {
             if (!park || !park.attributes) return false;
             
             const attrs = park.attributes;
             
-            // Get ALL possible text fields that might contain park names
-            let allParkText = '';
-            Object.keys(attrs).forEach(key => {
-              const value = attrs[key];
-              if (typeof value === 'string' && value.length > 0) {
-                allParkText += ' ' + value.toLowerCase();
-              }
-            });
-            
-            // Also try specific common field names
-            const commonNameFields = [
+            // Focus only on name fields for more precise matching
+            const nameFields = [
               'park_name', 'PARK_NAME', 'name', 'Name', 'parkname', 'ParkName',
               'What is the parks name', 'what_is_the_parks_name', 'park name',
-              'title', 'Title', 'location_name', 'place_name', 'field_1', 'field_2'
+              'title', 'Title'
             ];
             
-            let specificNames = '';
-            commonNameFields.forEach(fieldName => {
-              if (attrs[fieldName]) {
-                specificNames += ' ' + attrs[fieldName].toString().toLowerCase();
+            let parkNames = '';
+            let foundNameFields = [];
+            nameFields.forEach(fieldName => {
+              if (attrs[fieldName] && typeof attrs[fieldName] === 'string' && attrs[fieldName].trim().length > 0) {
+                parkNames += ' ' + attrs[fieldName].toString().toLowerCase();
+                foundNameFields.push(fieldName + ': "' + attrs[fieldName] + '"');
               }
             });
             
-            const combinedText = (allParkText + ' ' + specificNames).toLowerCase();
+            parkNames = parkNames.trim().toLowerCase();
             
             // Debug logging for each park being checked
             console.log(`🔍 Checking park against search: "${searchTerm}"`);
-            console.log(`    All text fields: "${combinedText.substring(0, 200)}..."`);
+            console.log(`    Park name fields: ${foundNameFields.join(', ')}`);
+            console.log(`    Combined names: "${parkNames}"`);
             
-            // Skip if no meaningful text found
-            if (combinedText.trim().length < 3) {
-              console.log(`    ❌ Skipping - no meaningful text found`);
+            // Skip if no name found
+            if (parkNames.length === 0) {
+              console.log(`    ❌ Skipping - no park name found`);
               return false;
             }
             
-            // Multiple matching strategies
-            const directMatch = combinedText.includes(searchTerm);
+            // More precise matching strategies (only on name fields)
+            const directMatch = parkNames.includes(searchTerm);
             
-            // Word-based matching
-            const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 2);
-            const textWords = combinedText.split(/\s+/).filter(word => word.length > 2);
+            // Word-based matching - all search words must be found in park names
+            const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 1);
+            const nameWords = parkNames.split(/\s+/).filter(word => word.length > 1);
             
-            const wordMatch = searchWords.some(searchWord => 
-              textWords.some(textWord => 
-                textWord && searchWord && (
-                  textWord.includes(searchWord) || 
-                  searchWord.includes(textWord) ||
-                  (searchWord.length > 3 && textWord.length > 3 && 
-                   (textWord.startsWith(searchWord.substring(0, 4)) || searchWord.startsWith(textWord.substring(0, 4))))
-                )
+            const wordMatch = searchWords.every(searchWord => 
+              nameWords.some(nameWord => 
+                nameWord.includes(searchWord) || searchWord.includes(nameWord)
               )
             );
             
-            // Similarity score matching
-            const similarity = calculateSimilarity(searchTerm, combinedText);
-            const similarityMatch = similarity > 3;
+            // Exact phrase matching
+            const phraseMatch = parkNames.includes(searchTerm);
             
-            const isMatch = directMatch || wordMatch || similarityMatch;
+            const isMatch = directMatch || wordMatch || phraseMatch;
             
             if (isMatch) {
-              console.log(`✅ MATCH FOUND - Direct: ${directMatch}, Word: ${wordMatch}, Similarity: ${similarityMatch} (${similarity.toFixed(2)})`);
+              console.log(`✅ MATCH FOUND - Direct: ${directMatch}, Word: ${wordMatch}, Phrase: ${phraseMatch}`);
               
-              // Try to extract the actual park name for display
+              // Extract the actual park name for display
               let displayName = 'Unknown Park';
-              for (const fieldName of commonNameFields) {
+              for (const fieldName of nameFields) {
                 if (attrs[fieldName] && typeof attrs[fieldName] === 'string' && attrs[fieldName].trim().length > 0) {
                   displayName = attrs[fieldName];
                   break;
@@ -1471,7 +1459,7 @@
               }
               console.log(`    Display name: "${displayName}"`);
             } else {
-              console.log(`    ❌ No match`);
+              console.log(`    ❌ No match - search words not found in park names`);
             }
             
             return isMatch;
@@ -1546,60 +1534,118 @@
           return;
         }
         
-        // Use the best match (first in sorted array)
-        let targetPark = matchingParks[0];
+        // Always show all matching parks on map with special highlighting
+        console.log(`🗺️ Displaying ${matchingParks.length} matching park${matchingParks.length !== 1 ? 's' : ''} on map`);
         
-        // Show multiple matches if there are several good options
-        if (matchingParks.length > 1) {
-          const parkNames = matchingParks.slice(0, 3).map(park => 
-            park.attributes.park_name || park.attributes.PARK_NAME || park.attributes['What is the parks name'] || 'Unknown Park'
-          );
-          console.log(`🔍 Multiple matches found: ${parkNames.join(', ')}`);
-          console.log(`🎯 Selected best match: "${targetPark.attributes.park_name || targetPark.attributes['What is the parks name'] || 'Unknown Park'}"`);
-        }
-        
-        // Navigate to the park
-        if (targetPark && targetPark.geometry) {
-          const parkName = targetPark.attributes.park_name || targetPark.attributes['What is the parks name'] || 'Selected Park';
-          console.log("🎯 Navigating to park:", parkName);
+        try {
+          // Remove existing parks layer to show only search results
+          map.remove(parksLayer);
+          graphicsLayer.removeAll();
           
-          try {
-            // Zoom to the park location
-            view.goTo({
-              center: [targetPark.geometry.longitude, targetPark.geometry.latitude],
-              zoom: 16
-            }).then(() => {
-              // Create a proper graphic for the popup
-              const parkGraphic = new Graphic({
-                geometry: targetPark.geometry,
-                attributes: targetPark.attributes,
-                popupTemplate: parkPopupTemplate
-              });
-              
-              // Show popup for the park
-              view.popup.open({
-                features: [parkGraphic],
-                location: targetPark.geometry
-              });
-              
-              // Update the info panel
-              updateSelectedParkInfo(targetPark);
-            }).catch(error => {
-              console.error("Error navigating to park:", error);
-              alert("Error navigating to park. Please try again.");
+          // Create graphics for all matching parks with special highlighting
+          const searchGraphics = matchingParks.map((park, index) => {
+            const parkName = park.attributes.park_name || park.attributes.PARK_NAME || park.attributes['What is the parks name'] || `Match ${index + 1}`;
+            
+            return new Graphic({
+              geometry: park.geometry,
+              attributes: park.attributes,
+              symbol: {
+                type: "simple-marker",
+                style: "circle",
+                size: 24, // Large size for search results
+                color: [255, 69, 0, 0.9], // Bright orange-red for search results
+                outline: { 
+                  color: "#ffffff", 
+                  width: 4 
+                }
+              },
+              popupTemplate: parkPopupTemplate
             });
+          });
+          
+          // Add search result graphics to the map
+          graphicsLayer.addMany(searchGraphics);
+          
+          // Calculate extent to show all matching parks
+          const geometries = matchingParks.map(park => park.geometry);
+          if (geometries.length > 0) {
+            // Determine appropriate zoom level based on number of results
+            let zoomOptions;
+            if (matchingParks.length === 1) {
+              // Single result - zoom in closer
+              zoomOptions = {
+                center: [geometries[0].longitude, geometries[0].latitude],
+                zoom: 15
+              };
+            } else {
+              // Multiple results - show all with padding
+              zoomOptions = geometries;
+            }
             
-            // Show success message
-            document.getElementById("selectedParkInfo").innerHTML = 
-              `<p style='color: #2e8b57;'>✅ Found and navigated to: ${parkName}</p>`;
-            
-          } catch (error) {
-            console.error("Error in park navigation:", error);
-            alert("Error navigating to park. Please try again.");
+            // Zoom to show all matching parks
+            view.goTo(zoomOptions).then(() => {
+              console.log(`✅ Displaying ${matchingParks.length} matching park${matchingParks.length !== 1 ? 's' : ''} on map`);
+              
+              // If only one result, automatically open its popup
+              if (matchingParks.length === 1) {
+                setTimeout(() => {
+                  view.popup.open({
+                    features: [searchGraphics[0]],
+                    location: geometries[0]
+                  });
+                }, 500);
+              }
+            }).catch(error => {
+              console.error("Error zooming to search results:", error);
+              // Fallback - just zoom to first park
+              if (matchingParks[0] && matchingParks[0].geometry) {
+                view.goTo({
+                  center: [matchingParks[0].geometry.longitude, matchingParks[0].geometry.latitude],
+                  zoom: 12
+                });
+              }
+            });
           }
-        } else {
-          console.error("Target park missing geometry:", targetPark);
-          alert("Found matching park but unable to navigate (missing location data).");
+          
+          // Update info panel with search results summary
+          const parkNames = matchingParks.slice(0, 10).map(park => {
+            return park.attributes.park_name || park.attributes.PARK_NAME || park.attributes['What is the parks name'] || null;
+          }).filter(name => name !== null && name.trim().length > 0);
+          
+          let summaryText = `<div style='color: #2e8b57;'>
+            <h5>🔍 Search Results for "${searchTerm}"</h5>
+            <p><strong>Found ${matchingParks.length} matching park${matchingParks.length !== 1 ? 's' : ''}:</strong></p>`;
+          
+          if (matchingParks.length <= 10) {
+            // Show all parks if 10 or fewer
+            summaryText += `<ul style='margin: 10px 0; padding-left: 20px;'>`;
+            parkNames.forEach(name => {
+              summaryText += `<li style='margin-bottom: 5px;'>${name}</li>`;
+            });
+            summaryText += `</ul>`;
+          } else {
+            // Show first 10 with count if more than 10
+            summaryText += `<ul style='margin: 10px 0; padding-left: 20px;'>`;
+            parkNames.forEach(name => {
+              summaryText += `<li style='margin-bottom: 5px;'>${name}</li>`;
+            });
+            summaryText += `<li style='font-style: italic; color: #666;'>...and ${matchingParks.length - 10} more</li>`;
+            summaryText += `</ul>`;
+          }
+          
+          summaryText += `<p style='font-size: 13px; color: #666; margin-top: 10px;'>
+            <strong>💡 Tip:</strong> All matching parks are highlighted in orange. Click any marker to view details.
+          </p>
+          <p style='font-size: 13px; color: #888; margin-top: 5px;'>
+            🔄 Use "Clear All" or "Reset Everything" to return to normal view.
+          </p>
+        </div>`;
+          
+          document.getElementById("selectedParkInfo").innerHTML = summaryText;
+          
+        } catch (error) {
+          console.error("Error displaying search results:", error);
+          alert("Error displaying search results. Please try again.");
         }
       }
       
