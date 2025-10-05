@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>ParkFinder - Discover Parks Near You</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Discover, explore, and contribute to information about public parks in your community" />
+  <!-- ArcGIS JS API CDN links -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.25/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.25/"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden; /* Prevent any scrollbars */
+    }
+    
+    #viewDiv {
+      padding: 0;
+      margin: 0;
+      position: absolute;
+    }
+    
+    /* Header Styles */
+    #headerDiv {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: linear-gradient(135deg, #2e8b57 0%, #228b22 50%, #32cd32 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+      z-index: 100;
+    }
+    
+    #headerDiv h1 {
+      margin: 0;
+      font-size: 1.8em;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+    
+    #headerDiv .logo {
+      font-size: 2em;
+      margin-right: 10px;
+    }
+    
+    /* Top Search Bar */
+    #topSearchBar {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      max-width: 400px;
+      margin: 0 20px;
+    }
+    
+    #topParkSearch {
+      flex: 1;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 25px 0 0 25px;
+      font-size: 14px;
+      outline: none;
+      background: rgba(255, 255, 255, 0.95);
+      color: #333;
+    }
+    
+    #topParkSearch::placeholder {
+      color: #666;
+    }
+    
+    #topParkSearch:focus {
+      background: white;
+      box-shadow: 0 0 10px rgba(50, 205, 50, 0.3);
+    }
+    
+    .search-btn {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 0 25px 25px 0;
+      background: #0d4f0f;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .search-btn:hover {
+      background: #083309;
+    }
+    
+    /* Mobile Menu Toggle */
+    #mobileMenuToggle {
+      display: none;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.5em;
+      cursor: pointer;
+    }
+    
+    /* Main Map Container */
+    #viewDiv {
+      top: 70px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: calc(100vh - 70px);
+    }
+    
+    /* Filter Panel */
+    #filterPanel {
+      position: absolute;
+      top: 80px;
+      left: 15px;
+      width: 320px;
+      max-height: calc(100vh - 100px);
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      padding: 15px;
+      overflow-y: auto;
+      z-index: 99;
+      transition: transform 0.3s ease;
+    }
+    
+    #filterPanel h3 {
+      margin: 0 0 12px 0;
+      color: #2e8b57;
+      border-bottom: 3px solid #32cd32;
+      padding-bottom: 6px;
+      font-size: 1.2em;
+    }
+    
+    /* Filter Groups */
+    .filter-group {
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .filter-group:last-child {
+      border-bottom: none;
+    }
+    
+    .filter-group h4 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 1em;
+      font-weight: 600;
+    }
+    
+    /* Amenity Filters */
+    .amenity-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+      padding: 3px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+    }
+    
+    .amenity-item:hover {
+      background-color: #f0fff0;
+    }
+    
+    .amenity-item input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.1);
+      accent-color: #2e8b57;
+    }
+    
+    .amenity-item label {
+      cursor: pointer;
+      font-weight: 500;
+      color: #333;
+      flex: 1;
+    }
+    
+    /* Search and Controls */
+    .search-control {
+      margin-bottom: 15px;
+    }
+    
+    .search-control input, .search-control select {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    .search-control input:focus, .search-control select:focus {
+      outline: none;
+      border-color: #2e8b57;
+    }
+    
+    /* Range slider styling */
+    .range-container {
+      margin-bottom: 10px;
+    }
+    
+    .range-slider {
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: #ddd;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: background 0.2s;
+    }
+    
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #2e8b57;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      transition: all 0.2s;
+    }
+    
+    .range-slider::-webkit-slider-thumb:hover {
+      background: #228b22;
+      transform: scale(1.1);
+    }
+    
+    .range-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #2e8b57;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      transition: all 0.2s;
+    }
+    
+    .range-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .distance-value {
+      background: #f0fff0;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      color: #2e8b57;
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    
+    .btn-primary {
+      background: #2e8b57;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #228b22;
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: #f8f9fa;
+      color: #333;
+      border: 2px solid #ddd;
+    }
+    
+    .btn-secondary:hover {
+      background: #e9ecef;
+      border-color: #2e8b57;
+    }
+    
+    /* Info Panel */
+    #infoPanel {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      padding: 20px;
+      z-index: 99;
+    }
+    
+    #infoPanel h4 {
+      margin: 0 0 15px 0;
+      color: #2e8b57;
+      font-size: 1.1em;
+    }
+    
+    .info-content {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    /* Statistics */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .stat-item {
+      text-align: center;
+      padding: 10px;
+      background: #f8fff8;
+      border-radius: 8px;
+      border: 1px solid #e0f0e0;
+    }
+    
+    .stat-number {
+      font-size: 1.4em;
+      font-weight: bold;
+      color: #2e8b57;
+    }
+    
+    .stat-label {
+      font-size: 0.9em;
+      color: #666;
+    }
+    
+    /* Add Park Button */
+    #addParkBtn {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      background: #32cd32;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(50, 205, 50, 0.4);
+      z-index: 99;
+      transition: all 0.3s;
+    }
+    
+    #addParkBtn:hover {
+      background: #228b22;
+      transform: scale(1.1);
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      #headerDiv {
+        flex-direction: column;
+        height: 90px;
+        padding: 10px 20px;
+      }
+      
+      #headerDiv h1 {
+        font-size: 1.3em;
+        margin-bottom: 8px;
+      }
+      
+      #topSearchBar {
+        max-width: 100%;
+        margin: 0;
+        order: 2;
+      }
+      
+      #mobileMenuToggle {
+        display: block;
+        position: absolute;
+        top: 15px;
+        right: 20px;
+      }
+      
+      #viewDiv {
+        top: 90px;
+        height: calc(100vh - 90px);
+      }
+      
+      #filterPanel {
+        top: 100px;
+      }
+      
+      .esri-ui-top-left, .esri-ui-top-right {
+        top: 100px;
+      }
+      
+      #filterPanel {
+        width: calc(100% - 30px);
+        left: 15px;
+        transform: translateX(-100%);
+      }
+      
+      #filterPanel.mobile-open {
+        transform: translateX(0);
+      }
+      
+      #infoPanel {
+        width: calc(100% - 40px);
+        right: 20px;
+        left: 20px;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+      }
+      
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Widget positioning adjustments */
+    .esri-ui-top-left {
+      top: 80px;
+    }
+    
+    .esri-ui-top-right {
+      top: 80px;
+    }
+    
+    .esri-ui-bottom-left {
+      left: 15px;
+    }
+    
+    /* Custom popup styling */
+    .esri-popup__main-container {
+      max-width: 350px;
+    }
+    
+    /* Loading indicator */
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    
+    .loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      border: 2px solid #2e8b57;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header with branding and mobile menu -->
+  <div id="headerDiv">
+    <h1>
+      <span class="logo">🌳</span>
+      ParkFinder
+    </h1>
+    
+    <!-- Centered search bar -->
+    <div id="topSearchBar">
+      <input type="text" id="topParkSearch" placeholder="Search for parks..." />
+      <button class="search-btn" onclick="searchAndNavigateFromTop()">🔍</button>
+    </div>
+    
+    <button id="mobileMenuToggle" onclick="toggleMobileMenu()">☰</button>
+  </div>
+  
+  <!-- Main map container -->
+  <div id="viewDiv"></div>
+  
+  <!-- Filter and search panel -->
+  <div id="filterPanel">
+    <h3>🔍 Find Your Perfect Park</h3>
+    
+
+    
+    <!-- Filter by amenities -->
+    <div class="filter-group">
+      <h4>Amenities</h4>
+      <div class="amenity-item">
+        <input type="checkbox" id="playground" value="playground">
+        <label for="playground">🎠 Playground</label>
+      </div>
+      <div class="amenity-item">
+        <input type="checkbox" id="picnic" value="picnic">
+        <label for="picnic">🧺 Picnic Areas</label>
+      </div>
+      <div class="amenity-item">
+        <input type="checkbox" id="trails" value="trails">
+        <label for="trails">🚴 Biking Trails</label>
+      </div>
+      <div class="amenity-item">
+        <input type="checkbox" id="accessible" value="accessible">
+        <label for="accessible">♿ Accessible</label>
+      </div>
+      <div class="amenity-item">
+        <input type="checkbox" id="parking" value="parking">
+        <label for="parking">🚗 Parking Available</label>
+      </div>
+      <div class="amenity-item">
+        <input type="checkbox" id="water_fountain" value="water_fountain">
+        <label for="water_fountain">💧 Water Fountain</label>
+      </div>
+    </div>
+    
+    <!-- Distance filter -->
+    <div class="filter-group">
+      <h4>Distance From Me</h4>
+      <div class="range-container">
+        <div class="range-label">
+          <span>Distance:</span>
+          <span class="distance-value" id="distanceValue">All Parks</span>
+        </div>
+        <input type="range" id="distanceFilter" class="range-slider" min="0" max="50" value="0" step="1">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px;">
+          <span>All</span>
+          <span>50 mi</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action buttons -->
+    <div class="action-buttons">
+      <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+      <button class="btn btn-secondary" onclick="clearFilters()">Clear All</button>
+    </div>
+    
+    <!-- Reset button -->
+    <div style="margin-top: 10px;">
+      <button class="btn btn-secondary" onclick="resetAll()" style="width: 100%; background: #ff6b35; color: white; border-color: #ff6b35;">
+        🔄 Reset Everything
+      </button>
+    </div>
+  </div>
+  
+  <!-- Information panel -->
+  <div id="infoPanel">
+    <h4>📍 Park Information</h4>
+    <div class="info-content">
+      <p id="selectedParkInfo">Select a park on the map to view details, amenities, and community reviews.</p>
+      
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-number" id="totalParks">-</div>
+          <div class="stat-label">Total Parks</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="nearbyParks">-</div>
+          <div class="stat-label">Nearby</div>
+        </div>
+      </div>
+      
+      <p style="margin-top: 15px; font-size: 13px; color: #666;">
+        💡 <strong>Tip:</strong> Click the + button to suggest a new park or report updates!
+      </p>
+    </div>
+  </div>
+  
+  <!-- Add new park button -->
+  <button id="addParkBtn" onclick="openAddParkForm()" title="Add New Park or Report Update">+</button>
+  <script>
+    require([
+      "esri/config", 
+      "esri/Map", 
+      "esri/views/MapView", 
+      "esri/widgets/BasemapGallery", 
+      "esri/widgets/Locate", 
+      "esri/widgets/Legend",
+      "esri/widgets/ScaleBar",
+      "esri/widgets/Home",
+      "esri/layers/FeatureLayer",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/geometry/geometryEngine",
+      "esri/geometry/Point",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/symbols/PictureMarkerSymbol",
+      "esri/PopupTemplate",
+      "esri/widgets/Expand"
+    ], function(
+      esriConfig, Map, MapView, BasemapGallery, Locate, Legend, ScaleBar, 
+      Home, FeatureLayer, GraphicsLayer, Graphic, geometryEngine, Point,
+      SimpleMarkerSymbol, PictureMarkerSymbol, PopupTemplate, Expand
+    ) {
+      
+      // Set your API key
+      esriConfig.apiKey = "AAPTxy8BH1VEsoebNVZXo8HurCu2TH84b2JPXGHcpnrENGUlsKXUHky6dWw4HwNY493BU07JNfsxzb5ig_D74C3pv0851C9C5yQnYonCfvXrgxBDdAgc_-Wbtkh8QGwdxuh6r0Vo4z0xBDw9NAovCC05rS1-bRKQiUyMG0NjjpEBboNq9Da2zzZ8135JWULf_bSFW-YMNmsP-xULBjOqCWEtYVZ4R0HErTn3rlYObvXKo19PFahCN4ggBiJ0sV836iQxAT1_oiy9mg6H";
+      
+      // Global variables
+      let view, parksLayer, userLocation;
+      let allParks = [];
+      let filteredParks = [];
+      
+      // Create graphics layer for user interactions
+      const graphicsLayer = new GraphicsLayer({
+        title: "User Graphics"
+      });
+      
+      // Define popup template to show all Survey123 data
+      const parkPopupTemplate = new PopupTemplate({
+        title: function(feature) {
+          // Use park name as title, fallback to "Park Details" if no name
+          const attrs = feature.graphic.attributes;
+          return attrs.park_name || attrs.PARK_NAME || "Park Details";
+        },
+        content: function(feature) {
+          const attrs = feature.graphic.attributes;
+          let content = '<div style="font-family: Arial, sans-serif; max-width: 400px;">';
+          
+          // Display all attributes in a clean table format
+          content += '<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">';
+          
+          // Skip system fields like OBJECTID, GlobalID, etc. - now including park_name since it's in the title
+          const skipFields = ['objectid', 'globalid', 'creationdate', 'creator', 'editdate', 'editor', 'park_name'];
+          
+          for (let field in attrs) {
+            if (attrs[field] !== null && attrs[field] !== undefined && attrs[field] !== '' && 
+                !skipFields.includes(field.toLowerCase())) {
+              
+              // Format field name (remove underscores, capitalize)
+              let fieldName = field.replace(/_/g, ' ')
+                                  .replace(/\b\w/g, l => l.toUpperCase());
+              
+              // Special case for park name field
+              if (field.toLowerCase() === 'park_name' || fieldName === 'What Is The Parks Name') {
+                fieldName = 'Park Name';
+              }
+              
+              // Special case for field_6 (rating field)
+              if (field.toLowerCase() === 'field_6') {
+                fieldName = 'Rating 1-5';
+              }
+              
+              // Special case for park amenities field
+              if (fieldName === 'Help Us Figure Out This Parks A') {
+                fieldName = 'Park Amenities';
+              }
+              
+              // Special case for review field
+              if (fieldName === 'Add A Review') {
+                fieldName = 'Review';
+              }
+              
+              // Special case for other amenities field
+              if (fieldName === 'Help Us Figure Out This P Other') {
+                fieldName = 'Other Park Amenities';
+              }
+              
+              let value = attrs[field];
+              
+              // Format dates if they look like timestamps
+              if (typeof value === 'number' && value > 1000000000000) {
+                value = new Date(value).toLocaleDateString();
+              }
+              
+              // Format boolean values
+              if (typeof value === 'boolean') {
+                value = value ? 'Yes' : 'No';
+              }
+              
+              // Format amenities fields as bullet point lists
+              if (fieldName === 'Park Amenities' || fieldName === 'Other Park Amenities') {
+                if (typeof value === 'string' && value.includes(',')) {
+                  // Split by comma and create bullet points
+                  const items = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
+                  if (items.length > 1) {
+                    value = '<ul style="margin: 0; padding-left: 16px;">' + 
+                            items.map(item => `<li>${item}</li>`).join('') + 
+                            '</ul>';
+                  }
+                } else if (typeof value === 'string' && value.includes(';')) {
+                  // Split by semicolon and create bullet points
+                  const items = value.split(';').map(item => item.trim()).filter(item => item.length > 0);
+                  if (items.length > 1) {
+                    value = '<ul style="margin: 0; padding-left: 16px;">' + 
+                            items.map(item => `<li>${item}</li>`).join('') + 
+                            '</ul>';
+                  }
+                }
+              }
+              
+              // Format rating field as stars
+              if (fieldName === 'Rating 1-5') {
+                const rating = parseInt(value);
+                if (!isNaN(rating) && rating >= 1 && rating <= 5) {
+                  // Create star display: filled stars for rating, empty stars for remainder
+                  const filledStars = '★'.repeat(rating);
+                  const emptyStars = '☆'.repeat(5 - rating);
+                  value = `<span style="color: #ffd700; font-size: 18px;">${filledStars}${emptyStars}</span> <span style="color: #666; font-size: 14px;">(${rating}/5)</span>`;
+                }
+              }
+              
+              // Special styling for Park Name field
+              let labelStyle = "padding: 8px; font-weight: bold; color: #2e8b57; vertical-align: top; width: 40%;";
+              let valueStyle = "padding: 8px; color: #333; word-wrap: break-word;";
+              
+              if (fieldName === 'Park Name') {
+                labelStyle = "padding: 8px; font-weight: bold; color: #2e8b57; vertical-align: top; width: 40%; font-size: 16px;";
+                valueStyle = "padding: 8px; color: #333; word-wrap: break-word; font-size: 18px; font-weight: bold;";
+              }
+              
+              content += `
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="${labelStyle}">
+                    ${fieldName}:
+                  </td>
+                  <td style="${valueStyle}">
+                    ${value}
+                  </td>
+                </tr>
+              `;
+            }
+          }
+          
+          content += '</table>';
+          
+          // Add coordinates at the bottom
+          if (feature.geometry && feature.geometry.latitude && feature.geometry.longitude) {
+            content += `
+              <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-size: 12px; color: #666;">
+                <strong>Coordinates:</strong> ${feature.geometry.latitude.toFixed(6)}, ${feature.geometry.longitude.toFixed(6)}
+              </div>
+            `;
+          }
+          
+          content += '</div>';
+          return content;
+        }
+      });
+      
+      // Create parks feature layer with enhanced styling - Using Survey123 data
+      parksLayer = new FeatureLayer({
+        // Survey123 Parks dataset - need to specify layer index
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/survey123_79823456b2e24a6e898aa514090c034d_results/FeatureServer/0",
+        title: "Chicago Parks",
+        popupTemplate: parkPopupTemplate,
+        renderer: {
+          type: "simple",
+          symbol: {
+            type: "simple-marker",
+            style: "circle",
+            size: 16, // Larger size for better visibility
+            color: [34, 139, 34, 0.9], // Darker green with more opacity
+            outline: { 
+              color: "#ffffff", 
+              width: 3 
+            }
+          }
+        },
+        outFields: ["*"] // Ensure all fields are available
+      });
+      
+      // Create the map
+      const map = new Map({
+        basemap: "streets-navigation-vector",
+        layers: [graphicsLayer, parksLayer]
+      });
+      
+      // Create the map view
+      view = new MapView({
+        map: map,
+        center: [-87.6298, 41.8781], // Chicago
+        zoom: 11,
+        container: "viewDiv"
+      });
+      
+      // Add essential widgets
+      const locateWidget = new Locate({
+        view: view,
+        useHeadingEnabled: false,
+        goToOverride: function(view, options) {
+          userLocation = options.target.geometry;
+          updateNearbyParks();
+          options.target.scale = 50000;
+          return view.goTo(options.target);
+        }
+      });
+      
+      const homeWidget = new Home({
+        view: view
+      });
+      
+      const basemapGallery = new BasemapGallery({
+        view: view,
+        container: document.createElement("div")
+      });
+      
+      const basemapExpand = new Expand({
+        view: view,
+        content: basemapGallery,
+        expandIconClass: "esri-icon-basemap",
+        expandTooltip: "Change Basemap"
+      });
+      
+      const legend = new Legend({
+        view: view,
+        container: document.createElement("div")
+      });
+      
+      const legendExpand = new Expand({
+        view: view,
+        content: legend,
+        expandIconClass: "esri-icon-legend",
+        expandTooltip: "Legend"
+      });
+      
+      const scaleBar = new ScaleBar({
+        view: view,
+        unit: "dual"
+      });
+      
+      // Add widgets to UI
+      view.ui.add(homeWidget, "top-left");
+      view.ui.add(locateWidget, "top-left");
+      view.ui.add(basemapExpand, "bottom-right");
+      view.ui.add(legendExpand, "bottom-right");
+      view.ui.add(scaleBar, "bottom-left");
+      
+      // Initialize park data when view loads
+      view.when(() => {
+        console.log("🌳 ParkFinder loaded successfully!");
+        console.log("🗺️ Map center:", view.center.longitude, view.center.latitude);
+        console.log("🔍 Map zoom:", view.zoom);
+        
+        // Wait a moment for layers to load before querying
+        setTimeout(() => {
+          loadParkData();
+          updateStatistics();
+        }, 1000);
+      });
+      
+      // Load and cache park data
+      function loadParkData() {
+        console.log("🔄 Starting to load park data...");
+        console.log("📡 Layer URL:", parksLayer.url);
+        
+        // Simple query without complex error handling
+        parksLayer.queryFeatures({
+          where: "1=1",
+          outFields: ["*"],
+          returnGeometry: true,
+          maxRecordCount: 1000
+        }).then(result => {
+          console.log(`📊 Query returned ${result.features.length} features`);
+          
+          if (result.features.length > 0) {
+            console.log("🔍 First feature attributes:", result.features[0].attributes);
+            console.log("📍 First feature geometry:", result.features[0].geometry);
+            
+            // Show ALL field names and their values for debugging
+            console.log("🏗️ All available fields in first park:");
+            const firstPark = result.features[0].attributes;
+            Object.keys(firstPark).forEach(key => {
+              console.log(`  "${key}": "${firstPark[key]}"`);
+            });
+            
+            // Show amenities data specifically
+            console.log("🎯 Amenities-related fields:");
+            Object.keys(firstPark).forEach(key => {
+              if (key.toLowerCase().includes('amenities') || 
+                  key.toLowerCase().includes('parks_a') || 
+                  key.toLowerCase().includes('figure')) {
+                console.log(`  AMENITIES FIELD "${key}": "${firstPark[key]}"`);
+              }
+            });
+          }
+          
+          allParks = result.features;
+          filteredParks = [...allParks];
+          updateStatistics();
+          
+          // Update UI with success message
+          if (allParks.length > 0) {
+            document.getElementById("selectedParkInfo").innerHTML = 
+              `<p style='color: #2e8b57;'>✅ Successfully loaded ${allParks.length} parks! Click on any park to view details.</p>`;
+            
+            // Debug: Show all field names from first park
+            console.log("🏗️ Available field names in first park:");
+            const firstPark = allParks[0];
+            Object.keys(firstPark.attributes).forEach(key => {
+              console.log(`  "${key}": "${firstPark.attributes[key]}"`);
+            });
+          } else {
+            document.getElementById("selectedParkInfo").innerHTML = 
+              `<p style='color: #ff9500;'>⚠️ No park data found. The survey may be empty or have different field names.</p>`;
+          }
+          
+        }).catch(error => {
+          console.error("❌ Error querying parks:", error);
+          
+          // Show user-friendly error
+          document.getElementById("selectedParkInfo").innerHTML = 
+            "<div style='color: #d63384; padding: 10px; background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 8px;'>" +
+            "<strong>⚠️ Error loading park data</strong><br>" +
+            "Survey123 service may be unavailable. Please check the console for details." +
+            "</div>";
+        });
+      }
+      
+      // Update statistics in info panel
+      function updateStatistics() {
+        document.getElementById("totalParks").textContent = allParks.length;
+        if (userLocation) {
+          updateNearbyParks();
+        } else {
+          document.getElementById("nearbyParks").textContent = "-";
+        }
+      }
+      
+      // Update nearby parks count
+      function updateNearbyParks() {
+        if (!userLocation) return;
+        
+        const nearby = allParks.filter(park => {
+          const distance = geometryEngine.distance(userLocation, park.geometry, "miles");
+          return distance <= 5; // Within 5 miles
+        });
+        
+        document.getElementById("nearbyParks").textContent = nearby.length;
+      }
+      
+      // Handle park selection
+      view.on("click", event => {
+        view.hitTest(event).then(response => {
+          const parkFeature = response.results.find(result => 
+            result.graphic.layer === parksLayer
+          );
+          
+          if (parkFeature) {
+            const park = parkFeature.graphic;
+            updateSelectedParkInfo(park);
+            
+            // Simulate amenities loading (in real app, this would query additional data)
+            setTimeout(() => {
+              updateAmenitiesDisplay(park.attributes);
+            }, 500);
+          }
+        });
+      });
+      
+      // Update selected park information
+      function updateSelectedParkInfo(park) {
+        const attrs = park.attributes;
+        const infoText = `
+          <div style="padding: 10px; background: #f0fff0; border-radius: 8px; margin-bottom: 10px;">
+            <h5 style="margin: 0 0 8px 0; color: #2e8b57;">${attrs.park_name || attrs.PARK_NAME || 'Park Name'}</h5>
+            <p style="margin: 0; font-size: 13px;">
+              📍 ${attrs.location || attrs.LOCATION || 'Location not available'}<br>
+              📏 ${attrs.size_acres || attrs.ACRES ? (attrs.size_acres || attrs.ACRES) + ' acres' : 'Size not specified'}<br>
+              🏷️ ${attrs.park_type || attrs.PARK_CLASS || 'Community Park'}
+            </p>
+          </div>
+        `;
+        document.getElementById("selectedParkInfo").innerHTML = infoText;
+      }
+      
+      // Simulate amenities display (in real app, this would be from database)
+      function updateAmenitiesDisplay(attributes) {
+        const amenitiesContainer = document.getElementById("amenitiesContent");
+        if (amenitiesContainer) {
+          // Simulate random amenities based on park size and type
+          const parkSize = attributes.ACRES || 10;
+          const amenities = [];
+          
+          if (parkSize > 5) amenities.push("🎠 Playground");
+          if (parkSize > 15) amenities.push("⚽ Sports Fields");
+          if (parkSize > 3) amenities.push("🧺 Picnic Areas");
+          if (parkSize > 10) amenities.push("🥾 Walking Trails");
+          if (Math.random() > 0.3) amenities.push("🚗 Parking");
+          if (Math.random() > 0.5) amenities.push("♿ Accessible");
+          
+          if (amenities.length > 0) {
+            amenitiesContainer.innerHTML = amenities.map(a => 
+              `<span style="display: inline-block; background: #e8f5e8; padding: 4px 8px; margin: 2px; border-radius: 12px; font-size: 12px;">${a}</span>`
+            ).join('');
+          } else {
+            amenitiesContainer.innerHTML = "<p style='margin: 0; font-style: italic; color: #666;'>No amenities information available</p>";
+          }
+        }
+      }
+      
+      // Filter functionality
+      window.applyFilters = function() {
+        const searchTerm = document.getElementById("topParkSearch").value.toLowerCase();
+        const selectedAmenities = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(cb => cb.value);
+        const maxDistance = document.getElementById("distanceFilter").value;
+        
+        let filtered = [...allParks];
+        
+        // Filter by search term
+        if (searchTerm) {
+          filtered = filtered.filter(park => 
+            (park.attributes.park_name || park.attributes.PARK_NAME)?.toLowerCase().includes(searchTerm) ||
+            (park.attributes.location || park.attributes.LOCATION)?.toLowerCase().includes(searchTerm)
+          );
+        }
+        
+        // Filter by amenities (ALL selected amenities must be present)
+        if (selectedAmenities.length > 0) {
+          console.log("🔍 Selected amenities (ALL must be present):", selectedAmenities);
+          
+          filtered = filtered.filter(park => {
+            // Get amenities from Survey123 fields - try all possible field name variations
+            const attrs = park.attributes;
+            let amenitiesField1 = "";
+            let amenitiesField2 = "";
+            
+            // Try different field name variations for amenities - cast as wide a net as possible
+            for (const key in attrs) {
+              const lowerKey = key.toLowerCase();
+              const value = attrs[key] || "";
+              
+              if (lowerKey.includes('parks_a') || lowerKey.includes('park_amenities') || 
+                  lowerKey.includes('amenities') || lowerKey.includes('figure') ||
+                  lowerKey.includes('help_us') || key.startsWith('field_')) {
+                if (!amenitiesField1 && value) amenitiesField1 = value;
+                else if (!amenitiesField2 && value && value !== amenitiesField1) amenitiesField2 = value;
+              }
+            }
+            
+            const allAmenities = (amenitiesField1 + " " + amenitiesField2).toLowerCase();
+            
+            console.log(`🏞️ Checking park: ${attrs.park_name || 'Unknown'}`);
+            console.log(`    Combined amenities text: "${allAmenities}"`);
+            console.log(`   ✅ Must have ALL: ${selectedAmenities}`);
+            
+            // Check if ALL selected amenities are found in the park (AND logic)
+            const hasAllAmenities = selectedAmenities.every(amenity => {
+              let found = false;
+              switch(amenity) {
+                case 'playground':
+                  found = allAmenities.includes('playground') || allAmenities.includes('playgound') ||
+                         allAmenities.includes('play area') || allAmenities.includes('play ground') ||
+                         allAmenities.includes('kids') || allAmenities.includes('children') ||
+                         allAmenities.includes('swing') || allAmenities.includes('slide') ||
+                         allAmenities.includes('jungle gym') || allAmenities.includes('play equipment') ||
+                         allAmenities.includes('tot lot') || allAmenities.includes('playground equipment');
+                  break;
+                case 'picnic':
+                  found = allAmenities.includes('picnic') || allAmenities.includes('pavilion') ||
+                         allAmenities.includes('shelter') || allAmenities.includes('grill') ||
+                         allAmenities.includes('table');
+                  break;
+                case 'trails':
+                  found = allAmenities.includes('trail') || allAmenities.includes('path') ||
+                         allAmenities.includes('bike') || allAmenities.includes('biking') ||
+                         allAmenities.includes('bicycle') || allAmenities.includes('cycling');
+                  break;
+                case 'accessible':
+                  found = allAmenities.includes('accessible') || allAmenities.includes('handicap') ||
+                         allAmenities.includes('ada') || allAmenities.includes('wheelchair') ||
+                         allAmenities.includes('disability');
+                  break;
+                case 'parking':
+                  found = allAmenities.includes('parking') || allAmenities.includes('lot') ||
+                         allAmenities.includes('garage');
+                  break;
+                case 'water_fountain':
+                  found = allAmenities.includes('water fountain') || allAmenities.includes('fountain') ||
+                         allAmenities.includes('water') || allAmenities.includes('drinking fountain') ||
+                         allAmenities.includes('hydration') || allAmenities.includes('water feature');
+                  break;
+              }
+              
+              console.log(`   ${found ? '✅' : '❌'} ${amenity}: ${found ? 'FOUND' : 'NOT FOUND'}`);
+              return found;
+            });
+            
+            if (hasAllAmenities) {
+              console.log(`✅ Park ${attrs.park_name || 'Unknown'} has ALL selected amenities!`);
+            } else {
+              console.log(`❌ Park ${attrs.park_name || 'Unknown'} is missing some amenities`);
+            }
+            
+            return hasAllAmenities;
+          });
+        }
+        
+        // Filter by distance (if user location available)
+        if (maxDistance !== "0" && userLocation) {
+          const maxDist = parseFloat(maxDistance);
+          filtered = filtered.filter(park => {
+            const distance = geometryEngine.distance(userLocation, park.geometry, "miles");
+            return distance <= maxDist;
+          });
+        }
+        
+        // Remove the original parks layer and add a new one with filtered graphics
+        if (filtered.length < allParks.length) {
+          console.log(`🔍 APPLYING VISUAL FILTERING: Showing ${filtered.length} of ${allParks.length} parks`);
+          
+          // Remove existing parks layer
+          map.remove(parksLayer);
+          
+          // Clear the graphics layer and add filtered parks as graphics
+          graphicsLayer.removeAll();
+          
+          // Create graphics for filtered parks
+          const filteredGraphics = filtered.map(park => {
+            return new Graphic({
+              geometry: park.geometry,
+              attributes: park.attributes,
+              symbol: {
+                type: "simple-marker",
+                style: "circle",
+                size: 20,
+                color: [255, 165, 0, 0.9], // Orange for filtered parks
+                outline: { 
+                  color: "#ffffff", 
+                  width: 4 
+                }
+              },
+              popupTemplate: parkPopupTemplate
+            });
+          });
+          
+          // Add filtered graphics to the graphics layer
+          graphicsLayer.addMany(filteredGraphics);
+          
+          console.log(`✅ FILTERING APPLIED: Added ${filteredGraphics.length} graphics to map`);
+        } else if (filtered.length === 0) {
+          // No matches - remove all graphics
+          map.remove(parksLayer);
+          graphicsLayer.removeAll();
+          console.log(`❌ NO MATCHES: Removed all park graphics`);
+        } else {
+          // Show all parks - restore original layer
+          graphicsLayer.removeAll();
+          if (!map.layers.includes(parksLayer)) {
+            map.add(parksLayer);
+          }
+          
+          // Reset to original green renderer
+          parksLayer.renderer = {
+            type: "simple",
+            symbol: {
+              type: "simple-marker",
+              style: "circle",
+              size: 16,
+              color: [34, 139, 34, 0.9], // Original green
+              outline: { 
+                color: "#ffffff", 
+                width: 3 
+              }
+            }
+          };
+          console.log(`🔄 SHOWING ALL PARKS: Restored original layer`);
+        }
+        
+        filteredParks = filtered;
+        
+        // Update UI feedback
+        if (filtered.length === 0) {
+          document.getElementById("selectedParkInfo").innerHTML = 
+            "<p style='color: #ff6b35;'>No parks match your current filters. Try adjusting your criteria.</p>";
+        } else {
+          document.getElementById("selectedParkInfo").innerHTML = 
+            `<p style='color: #2e8b57;'>Found ${filtered.length} park${filtered.length !== 1 ? 's' : ''} matching your criteria.</p>`;
+        }
+        
+        console.log(`Applied filters: ${filtered.length} parks shown`);
+      };
+      
+      window.clearFilters = function() {
+        // Clear all form inputs
+        document.getElementById("topParkSearch").value = "";
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        document.getElementById("distanceFilter").value = "0";
+        document.getElementById("distanceValue").textContent = "All Parks";
+        
+        // Restore the original parks layer and clear graphics
+        graphicsLayer.removeAll();
+        
+        if (!map.layers.includes(parksLayer)) {
+          map.add(parksLayer);
+        }
+        
+        // Reset to original renderer
+        parksLayer.definitionExpression = null;
+        parksLayer.renderer = {
+          type: "simple",
+          symbol: {
+            type: "simple-marker",
+            style: "circle",
+            size: 16,
+            color: [34, 139, 34, 0.9], // Original green
+            outline: { 
+              color: "#ffffff", 
+              width: 3 
+            }
+          }
+        };
+        
+        filteredParks = [...allParks];
+        
+        console.log(`🔄 FILTERS CLEARED: Restored original layer with all ${allParks.length} parks`);
+        
+        // Reset info panel
+        document.getElementById("selectedParkInfo").innerHTML = 
+          "Select a park on the map to view details, amenities, and community reviews.";
+        
+        console.log("Filters cleared - showing all parks");
+      };
+      
+      // Complete reset function - clears everything and returns to home view
+      window.resetAll = function() {
+        console.log("🔄 COMPLETE RESET: Resetting everything to initial state");
+        
+        // Clear all filters first
+        clearFilters();
+        
+        // Close any open popups
+        view.popup.close();
+        
+        // Reset map view to original Chicago center and zoom
+        view.goTo({
+          center: [-87.6298, 41.8781], // Chicago
+          zoom: 11
+        });
+        
+        // Reset info panel to default message
+        document.getElementById("selectedParkInfo").innerHTML = 
+          "Select a park on the map to view details, amenities, and community reviews.";
+        
+        // Update statistics
+        updateStatistics();
+        
+        console.log("✅ COMPLETE RESET: Everything restored to initial state");
+        
+        // Show confirmation message briefly
+        const originalText = document.getElementById("selectedParkInfo").innerHTML;
+        document.getElementById("selectedParkInfo").innerHTML = 
+          "<p style='color: #2e8b57;'>🔄 Reset complete! Map restored to initial view with all parks visible.</p>";
+        
+        setTimeout(() => {
+          document.getElementById("selectedParkInfo").innerHTML = originalText;
+        }, 3000);
+      };
+      
+      // Mobile menu toggle
+      window.toggleMobileMenu = function() {
+        const panel = document.getElementById("filterPanel");
+        panel.classList.toggle("mobile-open");
+      };
+      
+      // Community interaction functions
+      window.addReview = function(parkName = "this park") {
+        alert(`📝 Review System for ${parkName}\n\nIn the full version, this would open a form where you can:\n• Rate ${parkName} (1-5 stars)\n• Write a detailed review\n• Upload photos\n• Share tips for other visitors\n\nReviews help the community make informed decisions!`);
+      };
+      
+      window.reportUpdate = function(parkName = "this park") {
+        alert(`🔄 Report Update for ${parkName}\n\nIn the full version, this would allow you to:\n• Report new amenities or facilities\n• Update operating hours\n• Report maintenance issues\n• Suggest facility improvements\n\nYour updates help keep ${parkName} information accurate!`);
+      };
+      
+      window.openAddParkForm = function() {
+        // Open Survey123 form in new tab
+        window.open("https://survey123.arcgis.com/share/79823456b2e24a6e898aa514090c034d", "_blank");
+      };
+      
+      // Search function for top search bar
+      window.searchAndNavigateFromTop = function() {
+        // Copy value from top search to use existing search logic
+        const topSearchValue = document.getElementById("topParkSearch").value;
+        
+        if (!topSearchValue.trim()) {
+          alert("Please enter a park name to search for.");
+          return;
+        }
+        
+        // Use the existing search logic with the top search value
+        searchAndNavigateWithTerm(topSearchValue.toLowerCase().trim());
+      };
+      
+      // Enhanced search function that navigates to matching park
+      window.searchAndNavigate = function() {
+        // This function is kept for backward compatibility but no longer used in UI
+        const searchTerm = document.getElementById("topParkSearch").value.toLowerCase().trim();
+        
+        if (!searchTerm) {
+          alert("Please enter a park name to search for.");
+          return;
+        }
+        
+        searchAndNavigateWithTerm(searchTerm);
+      };
+      
+      // Core search logic that can be used by both search functions
+      function searchAndNavigateWithTerm(searchTerm) {
+        
+        console.log("🔍 Searching for park:", searchTerm);
+        
+        // Ensure we have park data loaded
+        if (!allParks || allParks.length === 0) {
+          console.error("❌ No park data available for search");
+          alert("Park data is not loaded yet. Please wait a moment and try again.");
+          return;
+        }
+        
+        // DIAGNOSTIC: Show all parks and their names
+        console.log("🏞️ DIAGNOSTIC - All available parks:");
+        allParks.forEach((park, index) => {
+          const attrs = park.attributes;
+          console.log(`  ${index + 1}. Park ${index + 1}:`);
+          
+          // Show all possible name fields
+          Object.keys(attrs).forEach(key => {
+            if (key.toLowerCase().includes('name') || key.toLowerCase().includes('park')) {
+              console.log(`    "${key}": "${attrs[key]}"`);
+            }
+          });
+        });
+        
+        if (allParks.length === 1) {
+          console.log("⚠️ WARNING: Only 1 park found in dataset - this explains why search always goes to same park!");
+        }
+        
+        // Helper function to calculate similarity score between two strings
+        function calculateSimilarity(str1, str2) {
+          if (!str1 || !str2) return 0;
+          
+          // Simple similarity based on common words and character overlap
+          const words1 = str1.toLowerCase().split(/\s+/);
+          const words2 = str2.toLowerCase().split(/\s+/);
+          
+          let commonWords = 0;
+          words1.forEach(word1 => {
+            if (words2.some(word2 => word2.includes(word1) || word1.includes(word2))) {
+              commonWords++;
+            }
+          });
+          
+          // Also check for character-level similarity
+          let charMatches = 0;
+          const shorter = str1.length < str2.length ? str1 : str2;
+          const longer = str1.length >= str2.length ? str1 : str2;
+          
+          for (let i = 0; i < shorter.length; i++) {
+            if (longer.includes(shorter[i])) {
+              charMatches++;
+            }
+          }
+          
+          return (commonWords * 2) + (charMatches / shorter.length);
+        }
+        
+        // Find matching parks with fuzzy search
+        const matchingParks = allParks.filter(park => {
+          try {
+            if (!park || !park.attributes) return false;
+            
+            const attrs = park.attributes;
+            
+            // Get ALL possible text fields that might contain park names
+            let allParkText = '';
+            Object.keys(attrs).forEach(key => {
+              const value = attrs[key];
+              if (typeof value === 'string' && value.length > 0) {
+                allParkText += ' ' + value.toLowerCase();
+              }
+            });
+            
+            // Also try specific common field names
+            const commonNameFields = [
+              'park_name', 'PARK_NAME', 'name', 'Name', 'parkname', 'ParkName',
+              'What is the parks name', 'what_is_the_parks_name', 'park name',
+              'title', 'Title', 'location_name', 'place_name', 'field_1', 'field_2'
+            ];
+            
+            let specificNames = '';
+            commonNameFields.forEach(fieldName => {
+              if (attrs[fieldName]) {
+                specificNames += ' ' + attrs[fieldName].toString().toLowerCase();
+              }
+            });
+            
+            const combinedText = (allParkText + ' ' + specificNames).toLowerCase();
+            
+            // Debug logging for each park being checked
+            console.log(`🔍 Checking park against search: "${searchTerm}"`);
+            console.log(`    All text fields: "${combinedText.substring(0, 200)}..."`);
+            
+            // Skip if no meaningful text found
+            if (combinedText.trim().length < 3) {
+              console.log(`    ❌ Skipping - no meaningful text found`);
+              return false;
+            }
+            
+            // Multiple matching strategies
+            const directMatch = combinedText.includes(searchTerm);
+            
+            // Word-based matching
+            const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 2);
+            const textWords = combinedText.split(/\s+/).filter(word => word.length > 2);
+            
+            const wordMatch = searchWords.some(searchWord => 
+              textWords.some(textWord => 
+                textWord && searchWord && (
+                  textWord.includes(searchWord) || 
+                  searchWord.includes(textWord) ||
+                  (searchWord.length > 3 && textWord.length > 3 && 
+                   (textWord.startsWith(searchWord.substring(0, 4)) || searchWord.startsWith(textWord.substring(0, 4))))
+                )
+              )
+            );
+            
+            // Similarity score matching
+            const similarity = calculateSimilarity(searchTerm, combinedText);
+            const similarityMatch = similarity > 3;
+            
+            const isMatch = directMatch || wordMatch || similarityMatch;
+            
+            if (isMatch) {
+              console.log(`✅ MATCH FOUND - Direct: ${directMatch}, Word: ${wordMatch}, Similarity: ${similarityMatch} (${similarity.toFixed(2)})`);
+              
+              // Try to extract the actual park name for display
+              let displayName = 'Unknown Park';
+              for (const fieldName of commonNameFields) {
+                if (attrs[fieldName] && typeof attrs[fieldName] === 'string' && attrs[fieldName].trim().length > 0) {
+                  displayName = attrs[fieldName];
+                  break;
+                }
+              }
+              console.log(`    Display name: "${displayName}"`);
+            } else {
+              console.log(`    ❌ No match`);
+            }
+            
+            return isMatch;
+          } catch (error) {
+            console.error("Error filtering park:", error, park);
+            return false;
+          }
+        });
+        
+        // Sort by relevance (exact matches first, then by similarity)
+        matchingParks.sort((a, b) => {
+          try {
+            // Get display names for both parks
+            function getDisplayName(park) {
+              const attrs = park.attributes;
+              const commonNameFields = [
+                'park_name', 'PARK_NAME', 'name', 'Name', 'parkname',
+                'What is the parks name', 'what_is_the_parks_name', 'title', 'Title'
+              ];
+              
+              for (const fieldName of commonNameFields) {
+                if (attrs[fieldName] && typeof attrs[fieldName] === 'string' && attrs[fieldName].trim().length > 0) {
+                  return attrs[fieldName].toString().toLowerCase();
+                }
+              }
+              return 'unknown park';
+            }
+            
+            const aName = getDisplayName(a);
+            const bName = getDisplayName(b);
+            
+            // Perfect exact matches first (starts with search term)
+            const aStartsWith = aName.startsWith(searchTerm);
+            const bStartsWith = bName.startsWith(searchTerm);
+            if (aStartsWith && !bStartsWith) return -1;
+            if (bStartsWith && !aStartsWith) return 1;
+            
+            // Then exact substring matches
+            const aContains = aName.includes(searchTerm);
+            const bContains = bName.includes(searchTerm);
+            if (aContains && !bContains) return -1;
+            if (bContains && !aContains) return 1;
+            
+            // Then by similarity score
+            const aSimilarity = calculateSimilarity(searchTerm, aName);
+            const bSimilarity = calculateSimilarity(searchTerm, bName);
+            
+            console.log(`📊 Sorting: "${aName}" (${aSimilarity.toFixed(2)}) vs "${bName}" (${bSimilarity.toFixed(2)})`);
+            
+            // Higher similarity wins
+            return bSimilarity - aSimilarity;
+          } catch (error) {
+            console.error("Error sorting parks:", error);
+            return 0;
+          }
+        });
+        
+        console.log(`🎯 Found ${matchingParks.length} matching parks for "${searchTerm}"`);
+        
+        // Debug: Show all matching parks with their scores
+        if (matchingParks.length > 0) {
+          console.log("🏆 All matching parks (sorted by relevance):");
+          matchingParks.slice(0, 5).forEach((park, index) => {
+            const name = park.attributes.park_name || park.attributes.PARK_NAME || park.attributes['What is the parks name'] || 'Unknown Park';
+            const similarity = calculateSimilarity(searchTerm, name.toLowerCase());
+            console.log(`  ${index + 1}. "${name}" (similarity: ${similarity.toFixed(2)})`);
+          });
+        }
+        
+        if (matchingParks.length === 0) {
+          alert(`No parks found matching "${searchTerm}". Try using different keywords or check the spelling.`);
+          return;
+        }
+        
+        // Use the best match (first in sorted array)
+        let targetPark = matchingParks[0];
+        
+        // Show multiple matches if there are several good options
+        if (matchingParks.length > 1) {
+          const parkNames = matchingParks.slice(0, 3).map(park => 
+            park.attributes.park_name || park.attributes.PARK_NAME || park.attributes['What is the parks name'] || 'Unknown Park'
+          );
+          console.log(`🔍 Multiple matches found: ${parkNames.join(', ')}`);
+          console.log(`🎯 Selected best match: "${targetPark.attributes.park_name || targetPark.attributes['What is the parks name'] || 'Unknown Park'}"`);
+        }
+        
+        // Navigate to the park
+        if (targetPark && targetPark.geometry) {
+          const parkName = targetPark.attributes.park_name || targetPark.attributes['What is the parks name'] || 'Selected Park';
+          console.log("🎯 Navigating to park:", parkName);
+          
+          try {
+            // Zoom to the park location
+            view.goTo({
+              center: [targetPark.geometry.longitude, targetPark.geometry.latitude],
+              zoom: 16
+            }).then(() => {
+              // Create a proper graphic for the popup
+              const parkGraphic = new Graphic({
+                geometry: targetPark.geometry,
+                attributes: targetPark.attributes,
+                popupTemplate: parkPopupTemplate
+              });
+              
+              // Show popup for the park
+              view.popup.open({
+                features: [parkGraphic],
+                location: targetPark.geometry
+              });
+              
+              // Update the info panel
+              updateSelectedParkInfo(targetPark);
+            }).catch(error => {
+              console.error("Error navigating to park:", error);
+              alert("Error navigating to park. Please try again.");
+            });
+            
+            // Show success message
+            document.getElementById("selectedParkInfo").innerHTML = 
+              `<p style='color: #2e8b57;'>✅ Found and navigated to: ${parkName}</p>`;
+            
+          } catch (error) {
+            console.error("Error in park navigation:", error);
+            alert("Error navigating to park. Please try again.");
+          }
+        } else {
+          console.error("Target park missing geometry:", targetPark);
+          alert("Found matching park but unable to navigate (missing location data).");
+        }
+      }
+      
+      // Top search bar event listeners
+      document.getElementById("topParkSearch").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          searchAndNavigateFromTop();
+        }
+      });
+      
+      // Optional: Add real-time search suggestions (can be enabled later)
+      document.getElementById("topParkSearch").addEventListener("input", function(e) {
+        // Could add search suggestions here in the future
+        // For now, we'll keep it simple
+      });
+      
+      // Distance slider event listener
+      document.getElementById("distanceFilter").addEventListener("input", function(e) {
+        const value = parseInt(e.target.value);
+        const distanceValue = document.getElementById("distanceValue");
+        
+        if (value === 0) {
+          distanceValue.textContent = "All Parks";
+        } else {
+          distanceValue.textContent = `${value} mile${value !== 1 ? 's' : ''}`;
+        }
+        
+        // Auto-apply filters when slider changes
+        applyFilters();
+      });
+      
+      // Auto-apply filters when amenity checkboxes change
+      document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+          console.log(`🎯 Checkbox ${this.value} changed to:`, this.checked);
+          applyFilters();
+        });
+      });
+      
+    });
+  </script>
+</body>
+</html>
